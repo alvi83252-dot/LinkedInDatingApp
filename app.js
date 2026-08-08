@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  const LS_KEY = "datein_state_v1";
+  const LS_KEY = "datein_state_v2";
   const $ = (sel) => document.querySelector(sel);
   const $$ = (sel) => document.querySelectorAll(sel);
 
@@ -11,11 +11,25 @@
 
   // ---------- State ----------
   function loadState() {
+    let st = null;
     try {
       const raw = localStorage.getItem(LS_KEY);
-      if (raw) return JSON.parse(raw);
+      if (raw) st = JSON.parse(raw);
     } catch (e) {}
-    return initialState();
+    if (!st) return initialState();
+    // Always sync candidates with the latest SEED_DATA so profile edits show up.
+    st.candidates = SEED_DATA.candidates.map((c) => ({ ...c }));
+    const fresh = new Set(st.candidates.map((c) => c.id));
+    Object.keys(st.seen || {}).forEach((id) => { if (!fresh.has(id)) delete st.seen[id]; });
+    st.matches = (st.matches || []).filter((id) => fresh.has(id));
+    st.pendingLikes = (st.pendingLikes || []).filter((id) => fresh.has(id));
+    Object.keys(st.convos || {}).forEach((id) => { if (!fresh.has(id)) delete st.convos[id]; });
+    Object.keys(st.read || {}).forEach((id) => { if (!fresh.has(id)) delete st.read[id]; });
+    st.seen = st.seen || {};
+    st.convos = st.convos || {};
+    st.read = st.read || {};
+    st.lastChat = st.lastChat || {};
+    return st;
   }
 
   function initialState() {
@@ -131,9 +145,13 @@
       .map((c) => {
         const twin = onlineForCandidate(c);
         return twin ? { ...c, online: true, liveId: "live:" + twin.id } : c;
-      });
+      })
+      .sort((a, b) => ((b.featured ? 1 : 0) - (a.featured ? 1 : 0)) || 0);
+    const usedLiveIds = new Set(base.filter((c) => c.liveId).map((c) => c.liveId));
+    const usedNames = new Set(base.map((c) => c.name.trim().toLowerCase()));
     const liveExtras = [...RT.online.values()]
-      .filter((u) => !base.some((c) => c.liveId === "live:" + u.id))
+      .filter((u) => !usedLiveIds.has("live:" + u.id))
+      .filter((u) => !usedNames.has(u.name.trim().toLowerCase()))
       .filter((u) => !state.seen["live:" + u.id])
       .map((u) => buildOnlineCandidate(u));
     return [...liveExtras, ...base];
