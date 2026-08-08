@@ -1,0 +1,6 @@
+.env
+node_modules/
+
+# Raw profile screenshots (contain full LinkedIn profiles of real people);
+# the app only uses the cropped avatars in /photos
+Screenshot *.png
